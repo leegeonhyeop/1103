@@ -1,0 +1,13 @@
+{
+  "name": "road-restaurant-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "도로명을 입력하면 그 길의 식당을 지도에 보여주는 웹사이트",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
