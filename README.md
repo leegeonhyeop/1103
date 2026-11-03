@@ -27,6 +27,33 @@
 3. **지도 표시** – Leaflet + OpenStreetMap 지도에 업종별 색으로 표시합니다.
    같은 건물에 있는 식당은 점 하나로 묶이고, 누르면 목록이 나옵니다.
 
+## Supabase에 저장하기 (선택)
+
+검색해서 모은 식당 데이터를 Supabase 데이터베이스에 저장할 수 있습니다.
+저장된 도로를 다시 검색하면 공공 API를 부르지 않고 Supabase에서 바로 불러옵니다 (30일 동안).
+화면의 **새로 모으기**를 누르면 최신 정보로 다시 모아 저장합니다.
+
+1. [supabase.com](https://supabase.com)에서 프로젝트를 만듭니다.
+2. 대시보드의 **SQL Editor**에 [supabase/schema.sql](supabase/schema.sql) 내용을 붙여넣고 **Run** 합니다.
+3. **Project Settings > API**에서 Project URL과 `service_role` 키를 복사해 `.env`에 넣습니다.
+
+   ```
+   SUPABASE_URL=https://xxxxxxxx.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=eyJ...
+   ```
+
+4. 서버를 다시 시작하면 콘솔에 `Supabase 저장: 켜짐`이 나옵니다.
+
+저장되는 테이블:
+
+| 테이블 | 내용 |
+|---|---|
+| `restaurants` | 식당 정보 (상가업소번호 기준, 같은 식당은 한 번만 저장) |
+| `road_searches` | 검색한 도로, 지역, 도로 모양, 식당 수, 수집 시각 |
+| `road_search_restaurants` | 어떤 검색에서 어떤 식당이 나왔는지 |
+
+테이블에는 보안(RLS)이 켜져 있어서 외부에서는 읽거나 쓸 수 없고, 서버의 `service_role` 키로만 접근합니다.
+
 ## 참고
 
 - 상가(상권)정보 API에는 도로명으로 바로 검색하는 기능이 없어서 위 방식으로 모읍니다.

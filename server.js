@@ -7,6 +7,7 @@ const fs = require("fs");
 const path = require("path");
 
 loadEnv(path.join(__dirname, ".env"));
+const db = require("./supabase");
 
 const PORT = Number(process.env.PORT) || 3000;
 const API_KEY = process.env.DATA_GO_KR_KEY;
@@ -301,11 +302,14 @@ function slimStore(s) {
 
 const cache = new Map(); // 같은 검색은 1시간 동안 재사용
 const CACHE_MS = 60 * 60 * 1000;
+// 상가 정보는 분기마다 갱신되므로, 저장된 결과는 30일 동안 사용합니다.
+const DB_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function handleSearch(url, res) {
   const q = (url.searchParams.get("q") || "").trim();
   const regionId = url.searchParams.get("region");
   const side = url.searchParams.get("side") === "1";
+  const refresh = url.searchParams.get("refresh") === "1"; // 저장된 결과 무시하고 새로 모으기
 
   res.writeHead(200, {
     "Content-Type": "application/x-ndjson; charset=utf-8",
@@ -336,10 +340,28 @@ async function handleSearch(url, res) {
     }
 
     const cacheKey = `${road}|${group.id}|${side}`;
-    const hit = cache.get(cacheKey);
-    if (hit && Date.now() - hit.time < CACHE_MS) {
-      send({ type: "result", ...hit.data, cached: true });
-      return;
+    if (!refresh) {
+      const hit = cache.get(cacheKey);
+      if (hit && Date.now() - hit.time < CACHE_MS) {
+        send({ type: "result", ...hit.data, source: "memory" });
+        return;
+      }
+
+      // Supabase에 저장된 결과가 있으면 공공 API 대신 그걸 씁니다.
+      if (db.isEnabled()) {
+        send({ type: "status", message: "저장된 식당 데이터를 확인하는 중..." });
+        try {
+          const saved = await db.loadSearch(cacheKey);
+          if (saved && Date.now() - new Date(saved.savedAt).getTime() < DB_MAX_AGE_MS) {
+            cache.set(cacheKey, { time: Date.now(), data: saved });
+            send({ type: "result", ...saved, source: "supabase" });
+            return;
+          }
+        } catch (err) {
+          console.error("Supabase 불러오기 실패:", err.message);
+          send({ type: "notice", message: `저장소를 읽지 못해 새로 모읍니다. (${err.message})` });
+        }
+      }
     }
 
     send({ type: "status", message: `${group.label} ${road} 주변 식당을 모으는 중...` });
@@ -348,7 +370,18 @@ async function handleSearch(url, res) {
     );
     const data = { road, region: group.label, roadLines: group.lines, ...result };
     cache.set(cacheKey, { time: Date.now(), data });
-    send({ type: "result", ...data });
+    send({ type: "result", ...data, source: "api" });
+
+    // 화면에 먼저 보여주고, 그다음 Supabase에 저장합니다.
+    if (db.isEnabled()) {
+      try {
+        await db.saveSearch(cacheKey, { ...data, includeSideStreets: side });
+        send({ type: "saved", count: data.stores.length });
+      } catch (err) {
+        console.error("Supabase 저장 실패:", err.message);
+        send({ type: "saveError", message: err.message });
+      }
+    }
   } catch (err) {
     send({ type: "error", message: err.message || String(err) });
   } finally {
@@ -389,4 +422,11 @@ http
     if (url.pathname === "/api/search") return void handleSearch(url, res);
     serveStatic(url, res);
   })
-  .listen(PORT, () => console.log(`http://localhost:${PORT} 에서 실행 중`));
+  .listen(PORT, () => {
+    console.log(`http://localhost:${PORT} 에서 실행 중`);
+    console.log(
+      db.isEnabled()
+        ? "Supabase 저장: 켜짐"
+        : "Supabase 저장: 꺼짐 (.env에 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY를 넣으면 켜집니다)"
+    );
+  });

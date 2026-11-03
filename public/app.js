@@ -82,11 +82,14 @@ els.form.addEventListener("submit", (e) => {
   search(els.q.value.trim());
 });
 
-async function search(q, region) {
+let lastSearch = null; // "새로 모으기"용
+
+async function search(q, region, refresh = false) {
   if (!q) return;
   const params = new URLSearchParams({ q });
   if (region) params.set("region", region);
   if (els.side.checked) params.set("side", "1");
+  if (refresh) params.set("refresh", "1");
 
   // 주소창에 검색어를 남겨서 새로고침·공유해도 같은 결과가 나오게 합니다.
   const pageParams = new URLSearchParams({ q });
@@ -134,7 +137,17 @@ function handleMessage(msg, q) {
       break;
     case "result":
       setStatus("");
+      lastSearch = { q, region: msg.region };
       showResult(msg);
+      break;
+    case "notice":
+      setStatus(msg.message, "loading");
+      break;
+    case "saved":
+      setSaveNote(`Supabase에 ${msg.count.toLocaleString()}곳 저장했어요.`);
+      break;
+    case "saveError":
+      setSaveNote(`Supabase 저장 실패: ${msg.message}`, true);
       break;
     case "error":
       setStatus(msg.message, "error");
@@ -173,15 +186,33 @@ function showResult(data) {
 
   const note = [];
   if (data.truncated) note.push("도로가 길어서 일부 구간만 조회했어요.");
-  if (data.cached) note.push("최근 검색 결과를 다시 보여줍니다.");
+  if (data.source === "supabase") {
+    const d = new Date(data.savedAt);
+    note.push(`Supabase에 저장된 데이터예요 (${d.toLocaleDateString("ko-KR")} 수집).`);
+  } else if (data.source === "memory") {
+    note.push("최근 검색 결과를 다시 보여줍니다.");
+  }
+  const canRefresh = data.source === "supabase" || data.source === "memory";
   els.summary.innerHTML =
     `${esc(data.region)} <b>${esc(data.road)}</b> · 식당 <b>${state.stores.length.toLocaleString()}</b>곳` +
-    (note.length ? `<span class="note">${esc(note.join(" "))}</span>` : "");
+    `<span class="note">${esc(note.join(" "))}` +
+    (canRefresh ? ` <button type="button" class="link-btn" id="refresh-btn">새로 모으기</button>` : "") +
+    `</span><span class="note" id="save-note"></span>`;
+  document.getElementById("refresh-btn")?.addEventListener("click", () => {
+    if (lastSearch) search(lastSearch.q, lastSearch.region, true);
+  });
 
   drawRoad(data.roadLines);
   buildChips();
   render();
   fitToResults();
+}
+
+function setSaveNote(text, isError = false) {
+  const el = document.getElementById("save-note");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("error", isError);
 }
 
 function drawRoad(lines) {

@@ -131,6 +131,17 @@ h1 {
 .summary { font-size: 14px; margin-bottom: 10px; }
 .summary b { font-size: 16px; }
 .summary .note { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.summary .note:empty { display: none; }
+.summary .note.error { color: #b91c1c; }
+.link-btn {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent-dark);
+  text-decoration: underline;
+  cursor: pointer;
+}
 
 .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
 .chip {
