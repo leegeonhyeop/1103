@@ -21,9 +21,10 @@ const MIN_GAP = 200; // 검색 중심점끼리의 최소 거리(m)
 const MAX_CALLS = 80; // 한 번 검색할 때 상가 API 최대 호출 수
 const CONCURRENCY = 1; // 개발계정은 동시 요청 시 초당 한도 오류가 나서 순서대로 보냅니다
 
+// 키가 없어도 서버는 켜두고, 검색할 때 안내 문구를 보여줍니다.
+// (배포 사이트에서 키를 빠뜨려도 서버가 바로 꺼지지 않게)
 if (!API_KEY) {
-  console.error("DATA_GO_KR_KEY가 없습니다. .env 파일을 확인하세요 (.env.example 참고).");
-  process.exit(1);
+  console.error("DATA_GO_KR_KEY가 없습니다. .env 파일(배포 시에는 환경변수)을 확인하세요.");
 }
 
 // ---------- 유틸 ----------
@@ -341,6 +342,7 @@ async function handleSearch(url, res, ip) {
   const send = (obj) => res.write(JSON.stringify(obj) + "\n");
 
   try {
+    if (!API_KEY) throw new Error("서버에 공공데이터포털 인증키(DATA_GO_KR_KEY)가 설정되지 않았습니다.");
     if (!q) throw new Error("도로명을 입력하세요.");
     const { road } = parseQuery(q);
     if (!/(로|길)$/.test(road)) throw new Error("'○○로' 또는 '○○길' 형태로 입력하세요. 예: 테헤란로, 대전 중앙로");
@@ -449,8 +451,9 @@ http
     if (url.pathname === "/api/search") return void handleSearch(url, res, clientIp(req));
     serveStatic(url, res);
   })
-  .listen(PORT, () => {
+  .listen(PORT, "0.0.0.0", () => {
     console.log(`http://localhost:${PORT} 에서 실행 중`);
+    console.log(`공공데이터포털 키: ${API_KEY ? "있음" : "없음 (검색이 동작하지 않습니다)"}`);
     console.log(
       db.isEnabled()
         ? "Supabase 저장: 켜짐"
