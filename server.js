@@ -305,8 +305,31 @@ const CACHE_MS = 60 * 60 * 1000;
 // 상가 정보는 분기마다 갱신되므로, 저장된 결과는 30일 동안 사용합니다.
 const DB_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
-async function handleSearch(url, res) {
-  const q = (url.searchParams.get("q") || "").trim();
+// 공개 사이트에서 한 사람이 API 일일 한도를 다 쓰지 않도록,
+// 새로 모으는 검색(저장된 결과 재사용은 제외)을 방문자당 시간당 횟수로 제한합니다.
+const COLLECT_LIMIT_PER_HOUR = Number(process.env.COLLECT_LIMIT_PER_HOUR) || 20;
+const collectLog = new Map(); // ip -> [시각...]
+
+function allowCollect(ip) {
+  const now = Date.now();
+  const recent = (collectLog.get(ip) || []).filter((t) => now - t < 60 * 60 * 1000);
+  if (recent.length >= COLLECT_LIMIT_PER_HOUR) {
+    collectLog.set(ip, recent);
+    return false;
+  }
+  recent.push(now);
+  collectLog.set(ip, recent);
+  return true;
+}
+
+function clientIp(req) {
+  // Render 같은 호스팅은 실제 방문자 IP를 x-forwarded-for에 넣어줍니다.
+  const fwd = req.headers["x-forwarded-for"];
+  return (fwd ? String(fwd).split(",")[0] : req.socket.remoteAddress || "").trim();
+}
+
+async function handleSearch(url, res, ip) {
+  const q = (url.searchParams.get("q") || "").trim().slice(0, 60);
   const regionId = url.searchParams.get("region");
   const side = url.searchParams.get("side") === "1";
   const refresh = url.searchParams.get("refresh") === "1"; // 저장된 결과 무시하고 새로 모으기
@@ -364,6 +387,10 @@ async function handleSearch(url, res) {
       }
     }
 
+    if (!allowCollect(ip)) {
+      throw new Error("검색이 너무 많아요. 잠시 후 다시 시도하세요. (이미 저장된 도로는 계속 볼 수 있어요)");
+    }
+
     send({ type: "status", message: `${group.label} ${road} 주변 식당을 모으는 중...` });
     const result = await crawlRoad(road, group.lines, side, (p) =>
       send({ type: "progress", ...p })
@@ -419,7 +446,7 @@ function serveStatic(url, res) {
 http
   .createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (url.pathname === "/api/search") return void handleSearch(url, res);
+    if (url.pathname === "/api/search") return void handleSearch(url, res, clientIp(req));
     serveStatic(url, res);
   })
   .listen(PORT, () => {

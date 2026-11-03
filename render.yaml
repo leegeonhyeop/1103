@@ -1,0 +1,22 @@
+# Render 배포 설정 (https://render.com)
+# Render 대시보드 > New > Blueprint 에서 이 저장소를 고르면 자동으로 읽습니다.
+services:
+  - type: web
+    name: road-restaurant-map
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: echo "no build step"
+    startCommand: node server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # 아래 값들은 Render 화면에서 직접 입력합니다 (GitHub에는 올라가지 않음).
+      - key: DATA_GO_KR_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

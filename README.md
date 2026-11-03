@@ -19,6 +19,21 @@ Windows에서는 `start.bat`을 더블클릭하면 서버가 켜지고 브라우
 
 외부 패키지는 쓰지 않습니다 (`npm install` 불필요).
 
+## 인터넷에 배포하기 (Render)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/leegeonhyeop/1103)
+
+1. 위 버튼을 누르고 GitHub 계정으로 Render에 로그인합니다.
+2. 저장소 설정([render.yaml](render.yaml))을 자동으로 읽습니다. 환경변수 칸에 값을 넣습니다.
+   - `DATA_GO_KR_KEY`: 공공데이터포털 인증키 (필수)
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`: Supabase 저장을 쓸 때만 (비워도 됨)
+3. **Apply / Deploy** 를 누르고 몇 분 기다리면 `https://road-restaurant-map-xxxx.onrender.com` 같은 주소가 생깁니다.
+
+참고
+- 무료 플랜은 15분 동안 방문이 없으면 잠들고, 다음 접속 때 깨어나는 데 30~60초 걸립니다.
+- 공개 사이트라서 방문자 한 명이 새로 모으는 검색은 시간당 20회로 제한합니다 (`COLLECT_LIMIT_PER_HOUR` 환경변수로 변경).
+- main 브랜치에 push하면 Render가 자동으로 다시 배포합니다.
+
 ## 동작 방식
 
 1. **도로 위치 찾기** – OpenStreetMap(Nominatim)에서 입력한 도로의 위치를 찾습니다.
